@@ -1,277 +1,668 @@
-<![CDATA[# 🔊 MachineEcho
+# 🔊 MachineEcho
 
-**Contactless Machine Anomaly Detection on Snapdragon PCs**
+### Contactless Machine Anomaly Detection on Snapdragon PCs
 
-MachineEcho turns an ordinary Snapdragon-powered HP laptop into a portable, contactless machine-health monitoring system. Using only the laptop's built-in microphone, it learns the normal acoustic signature of any machine and detects deviations in real time — entirely on-device, with inference accelerated by the Qualcomm Hexagon NPU.
+**MachineEcho** turns a Snapdragon-powered Windows PC into a portable, contactless machine-health monitoring system.
 
----
+Using only the computer's built-in microphone, MachineEcho learns the acoustic signature of a machine during normal operation and detects deviations from that baseline in real time.
 
-## 🎯 Problem
+The system combines **YAMNet audio embeddings**, **Isolation Forest anomaly detection**, and **Qualcomm Hexagon NPU acceleration through ONNX Runtime's QNN Execution Provider** to enable private, on-device acoustic monitoring.
 
-Everyday machines — ceiling fans, water pumps, washing machines, compressors, small motors — often develop abnormal sounds and vibrations **before** they fail. Detecting these early usually requires specialized sensors, technicians, or periodic inspection, making predictive maintenance **inaccessible** for homes, small businesses, and resource-constrained environments.
-
-## 💡 Solution
-
-MachineEcho provides **contactless early anomaly detection** using multimodal on-device AI:
-
-1. **Learn** — Record 30–60 seconds of a machine's normal operation
-2. **Monitor** — Continuously analyze the acoustic behaviour in real time
-3. **Alert** — Get immediate warnings when the machine deviates from its baseline
-
-No specialized sensors. No cloud. No subscription. Just a laptop microphone and Snapdragon AI.
+> **No cloud audio streaming. No dedicated vibration sensors. No external hardware required.**
 
 ---
 
-## 🏗️ Architecture
+## 🎯 At a Glance
 
+| Feature                    | Details                               |
+| -------------------------- | ------------------------------------- |
+| **Platform**               | Snapdragon X Series PCs               |
+| **Target Hardware**        | Snapdragon X Elite / X Plus PCs       |
+| **Audio Input**            | Built-in microphone                   |
+| **Sampling Rate**          | 16 kHz, mono                          |
+| **Audio Window**           | 0.96 seconds                          |
+| **Feature Extractor**      | YAMNet                                |
+| **Feature Representation** | 1024-dimensional audio embeddings     |
+| **Anomaly Detector**       | Isolation Forest                      |
+| **NPU Runtime**            | ONNX Runtime + QNN Execution Provider |
+| **Acceleration Target**    | Qualcomm Hexagon NPU                  |
+| **Interface**              | Streamlit                             |
+| **Processing**             | On-device                             |
+| **Cloud Dependency**       | None for inference                    |
+
+---
+
+# 💡 Problem
+
+Machines such as:
+
+* 🌀 Ceiling fans
+* 💧 Water pumps
+* 🧺 Washing machines
+* ⚙️ Motors
+* 🔧 Compressors
+* 🏭 Small workshop equipment
+
+often develop changes in their acoustic behavior before a noticeable failure.
+
+Traditional predictive-maintenance systems commonly rely on dedicated sensors such as vibration, temperature, current, or industrial acoustic sensors. These solutions can add hardware cost and installation complexity.
+
+For households and small workshops, a simpler approach is desirable.
+
+### The question
+
+**Can the microphone already present in a laptop be used as a contactless machine-health sensor?**
+
+---
+
+# 🚀 Our Solution
+
+MachineEcho uses the laptop microphone to continuously listen to a machine and compare its current acoustic behavior with a learned normal-operation baseline.
+
+### Pipeline
+
+```text
+Machine
+   │
+   ▼
+Built-in Laptop Microphone
+   │
+   ▼
+Audio Preprocessing
+   │
+   ├── 16 kHz Mono
+   ├── 0.96 s Windows
+   └── Log-Mel Features
+   │
+   ▼
+YAMNet
+   │
+   ▼
+1024-D Audio Embedding
+   │
+   ▼
+Isolation Forest
+   │
+   ▼
+Anomaly Score
+   │
+   ▼
+NORMAL / ANOMALY
+   │
+   ▼
+Streamlit Dashboard
 ```
-MACHINE (fan, pump, motor, …)
-        │
-        ▼
-  ┌─────────────┐
-  │  Microphone  │  Built-in laptop mic
-  └──────┬──────┘
-         │ 16 kHz mono audio stream
-         ▼
-  ┌─────────────────────┐
-  │  Audio Preprocessor  │  Windowing + Log-Mel Spectrogram
-  └──────────┬──────────┘
-             │ (1, 96, 64) spectrogram patch
-             ▼
-  ┌─────────────────────┐
-  │      YAMNet          │  Audio event classification model
-  │   (ONNX Runtime)     │  from Qualcomm AI Hub
-  │                      │
-  │  Execution Provider: │
-  │  QNN → Hexagon NPU  │
-  └──────────┬──────────┘
-             │ 1024-dim embedding
-             ▼
-  ┌─────────────────────┐
-  │  Isolation Forest    │  One-class anomaly detector
-  │  Anomaly Detector    │  trained on normal-operation
-  └──────────┬──────────┘  embeddings
-             │
-             ▼
-  ┌─────────────────────┐
-  │   Status + Score     │
-  │   🟢 NORMAL          │
-  │   🟠 ANOMALY         │
-  │   🔴 HIGH RISK       │
-  └─────────────────────┘
-```
-
-### Key Design Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| **YAMNet as feature extractor** (not classifier) | We don't classify machine types — we learn each machine's unique baseline |
-| **Isolation Forest** for anomaly detection | Trains on normal data only; no need for labelled anomaly examples |
-| **ONNX Runtime with QNN EP** | Direct Snapdragon NPU acceleration; falls back to CPU gracefully |
-| **Streamlit dashboard** | Simple, effective, fast to build — focus is on the AI, not the UI |
 
 ---
 
-## 🚀 Quick Start
+# ⚙️ How It Works
 
-### Prerequisites
+## 1. Learn the Machine's Normal Sound
 
-- **Hardware:** Snapdragon X Elite / X Plus / X2 Elite laptop (e.g., HP OmniBook Ultra)
-- **OS:** Windows 11 (ARM64)
-- **Python:** 3.10+
-- **ONNX Runtime:** With QNN Execution Provider for NPU acceleration
+The user records approximately **30–60 seconds of normal machine operation**.
 
-### Installation
+These recordings are converted into audio features and embeddings.
 
-```bash
-# Clone the repository
+The resulting embeddings represent the machine's normal acoustic behavior.
+
+---
+
+## 2. Extract Acoustic Features
+
+MachineEcho uses **YAMNet** as a general-purpose audio feature extractor.
+
+Instead of using YAMNet's final sound-classification output, MachineEcho uses its learned representation as an embedding.
+
+```text
+Audio
+  ↓
+YAMNet
+  ↓
+1024-dimensional embedding
+```
+
+This allows the system to model machine-specific acoustic behavior without requiring a large labeled dataset of machine failures.
+
+---
+
+## 3. Build an Anomaly Model
+
+The extracted embeddings from normal operation are used to train an **Isolation Forest**.
+
+The model learns the distribution of normal acoustic observations.
+
+During monitoring:
+
+```text
+Current Audio
+     ↓
+YAMNet Embedding
+     ↓
+Isolation Forest
+     ↓
+Anomaly Score
+     ↓
+Threshold
+     ↓
+NORMAL / ANOMALY
+```
+
+---
+
+## 4. Real-Time Monitoring
+
+During monitoring, incoming microphone audio is processed in short overlapping windows.
+
+The dashboard displays:
+
+* Current machine status
+* Anomaly score
+* Recent score history
+* Detection threshold
+* Processing information
+
+Example:
+
+```text
+┌─────────────────────────────────────┐
+│        MACHINEECHO MONITOR          │
+├─────────────────────────────────────┤
+│                                     │
+│        🟢 NORMAL                    │
+│                                     │
+│        Score: 0.14                  │
+│                                     │
+│   ─────────────────────────────     │
+│   Anomaly Score History             │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+When the acoustic behavior moves sufficiently far from the learned baseline:
+
+```text
+🟠 ANOMALY DETECTED
+```
+
+---
+
+# ⚡ Snapdragon NPU Acceleration
+
+One of the main goals of MachineEcho is to demonstrate **on-device AI inference on Snapdragon PCs**.
+
+The YAMNet model is exported to ONNX and executed using:
+
+```text
+ONNX Runtime
+      │
+      ▼
+QNN Execution Provider
+      │
+      ▼
+Qualcomm Hexagon NPU
+```
+
+A CPU fallback is also supported where the QNN execution provider is unavailable.
+
+### Execution modes
+
+```text
+Snapdragon PC
+     │
+     ├── QNN / Hexagon NPU
+     │
+     └── CPU fallback
+```
+
+This makes the application easier to test across different environments while keeping NPU acceleration available on supported Snapdragon systems.
+
+---
+
+# 📊 Benchmark
+
+MachineEcho was evaluated using synthetic and recorded acoustic samples.
+
+Example evaluation results:
+
+| Metric                     | Normal Operation |  Abnormal Operation |
+| -------------------------- | ---------------: | ------------------: |
+| Mean anomaly score         |       **0.1367** |          **0.6195** |
+| Classification             |        🟢 NORMAL | 🟠 ANOMALY DETECTED |
+| Detected anomalous windows |                — |         **28 / 30** |
+| Detection rate             |                — |           **93.3%** |
+
+### Inference
+
+The evaluation showed a clear separation between the normal-operation baseline and the tested abnormal acoustic samples.
+
+> **Important:** These results represent the current test setup and should not be interpreted as a general machine-failure prediction accuracy. Performance can vary depending on machine type, microphone placement, background noise, and the nature of the anomaly.
+
+---
+
+# 🏗️ System Architecture
+
+```text
+                 MACHINE
+              Fan / Pump / Motor
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │   Laptop Microphone │
+          └──────────┬──────────┘
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │ Audio Preprocessor  │
+          │                     │
+          │ 16 kHz Mono         │
+          │ 0.96s Windows       │
+          │ Log-Mel Features    │
+          └──────────┬──────────┘
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │      YAMNet         │
+          │    ONNX Runtime     │
+          └──────────┬──────────┘
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │ 1024-D Embedding    │
+          └──────────┬──────────┘
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │  Isolation Forest   │
+          │                     │
+          │ Normal Baseline     │
+          │       ↓             │
+          │ Anomaly Detection   │
+          └──────────┬──────────┘
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │ Anomaly Score       │
+          └──────────┬──────────┘
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │ Streamlit Dashboard │
+          │                     │
+          │ NORMAL / ANOMALY    │
+          │ Score / Graph       │
+          └─────────────────────┘
+```
+
+---
+
+# 🧠 Key Technical Decisions
+
+## YAMNet as a Feature Extractor
+
+Rather than training a neural network from scratch, MachineEcho uses YAMNet's pretrained acoustic representation.
+
+This provides a compact representation of incoming audio that can subsequently be used by the anomaly detector.
+
+### Why this approach?
+
+* Reduces training requirements
+* Works with limited machine-specific data
+* Provides a reusable acoustic representation
+* Separates feature extraction from anomaly detection
+
+---
+
+## Isolation Forest for Anomaly Detection
+
+Machine failure data is difficult to collect because abnormal events are relatively rare.
+
+Therefore, MachineEcho follows a **normal-only / one-class style approach**:
+
+```text
+Normal Machine Data
+       ↓
+Train Detector
+       ↓
+Learn Normal Distribution
+       ↓
+New Audio
+       ↓
+Detect Deviation
+```
+
+This avoids requiring a large labeled dataset containing every possible failure mode.
+
+---
+
+## On-Device Processing
+
+Machine audio is processed locally on the computer.
+
+The system does not require continuously uploading microphone recordings to a cloud server.
+
+This provides advantages for:
+
+* Privacy
+* Offline operation
+* Reduced network dependency
+* Lower data transmission
+* Local real-time processing
+
+---
+
+# 🔐 Privacy
+
+MachineEcho is designed around an **on-device inference architecture**.
+
+```text
+Microphone
+    │
+    ▼
+Local Processing
+    │
+    ▼
+Local AI Inference
+    │
+    ▼
+Local Dashboard
+```
+
+Raw microphone audio does not need to be transmitted to a remote server for anomaly detection.
+
+---
+
+# 🖥️ Dashboard
+
+The Streamlit interface provides a simple monitoring experience.
+
+### Dashboard capabilities
+
+* Live machine status
+* Current anomaly score
+* Score history
+* Detection threshold
+* Audio monitoring controls
+* Model/inference information
+
+---
+
+# 🚀 Quick Start
+
+## 1. Clone the Repository
+
+```powershell
 git clone https://github.com/YOUR_USERNAME/MachineEcho.git
 cd MachineEcho
+```
 
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate
+---
 
-# Install dependencies
+## 2. Install Dependencies
+
+```powershell
 pip install -r requirements.txt
 ```
 
-### Step 1: Record Normal Audio
+---
 
-Point your laptop microphone at the machine and record 30–60 seconds of normal operation:
+## 3. Run the Demo
 
-```bash
-python record_audio.py --mode normal --duration 30
+The repository includes a synthetic machine-audio demonstration.
+
+```powershell
+python demo.py
 ```
 
-### Step 2: Train the Anomaly Detector
+The demo demonstrates the complete pipeline:
 
-```bash
-python -m anomaly.train_anomaly
+```text
+Synthetic Machine Audio
+        ↓
+Feature Extraction
+        ↓
+Baseline Training
+        ↓
+Anomaly Detection
+        ↓
+Result Summary
 ```
 
-This extracts YAMNet embeddings from your normal audio and trains an Isolation Forest anomaly detector.
+---
 
-### Step 3: Start Monitoring
+## 4. Launch the Dashboard
 
-```bash
+```powershell
 streamlit run app.py
 ```
 
-The dashboard will show real-time anomaly detection with:
-- **Status indicator** (Normal / Anomaly / High Risk)
-- **Anomaly score** (0–1 scale)
-- **Inference latency** (ms)
-- **Score history chart**
+Then open:
 
-### Step 4: Benchmark NPU Performance
-
-```bash
-python benchmark.py --runs 100
+```text
+http://localhost:8501
 ```
-
-Compares inference latency across execution providers (QNN NPU, DirectML GPU, CPU).
 
 ---
 
-## 📁 Project Structure
+# 🎙️ Using a Real Machine
 
+## Step 1 — Record Normal Operation
+
+Record approximately 30 seconds of normal machine audio:
+
+```powershell
+python record_audio.py --mode normal --duration 30
 ```
+
+For better results:
+
+* Keep the microphone position consistent
+* Record during stable machine operation
+* Minimize background noise
+* Avoid moving the laptop during recording
+
+---
+
+## Step 2 — Train the Anomaly Detector
+
+```powershell
+python -m anomaly.train_anomaly
+```
+
+---
+
+## Step 3 — Start Monitoring
+
+```powershell
+streamlit run app.py
+```
+
+The system will use the trained baseline to evaluate incoming audio.
+
+---
+
+# 📁 Repository Structure
+
+```text
 MachineEcho/
-├── app.py                      # Streamlit real-time dashboard
-├── audio_processor.py          # Microphone capture, windowing, mel spectrogram
-├── feature_extractor.py        # YAMNet ONNX inference (QNN/CPU)
-├── config.py                   # All configuration constants
-├── record_audio.py             # CLI audio recording utility
-├── benchmark.py                # NPU vs CPU latency benchmark
-├── requirements.txt            # Python dependencies
-├── README.md                   # This file
+│
+├── app.py
+├── audio_processor.py
+├── feature_extractor.py
+├── config.py
+├── demo.py
+├── generate_demo_audio.py
+├── record_audio.py
+├── benchmark.py
+├── download_yamnet.py
+├── requirements.txt
+├── README.md
 │
 ├── anomaly/
-│   ├── __init__.py
-│   ├── detector.py             # IsolationForest anomaly detector
-│   └── train_anomaly.py        # Training script
-│
-├── anomaly_model/
-│   └── detector.pkl            # Trained anomaly model (generated)
-│
-├── models/
-│   └── yamnet.onnx             # YAMNet ONNX model (download from Qualcomm AI Hub)
-│
-├── data/
-│   ├── normal/                 # Normal-operation WAV recordings
-│   └── abnormal/               # Abnormal-operation WAV recordings (for testing)
+│   ├── detector.py
+│   └── train_anomaly.py
 │
 └── docs/
-    └── architecture.png        # Architecture diagram
+    ├── MachineEcho_Pitch_Deck.pptx
+    ├── MachineEcho_Brief_Description.pdf
+    ├── pitch_deck.md
+    └── brief_description.md
 ```
 
 ---
 
-## 🎯 Why Snapdragon
+# 📦 Submission Materials
 
-MachineEcho is **fundamentally designed** around Snapdragon's architecture:
+The `docs/` directory contains the supporting materials prepared for the innovation challenge:
 
-| Capability | Snapdragon Advantage |
-|------------|---------------------|
-| **Sustained NPU inference** | Hexagon NPU provides dedicated AI compute without thermal throttling |
-| **Low power consumption** | Continuous monitoring for hours without draining battery |
-| **On-device privacy** | All audio processing stays on the laptop — nothing leaves the device |
-| **Low latency** | Sub-millisecond YAMNet inference on NPU (est. ~266 μs on X Elite) |
-| **Qualcomm AI Hub** | Pre-optimized YAMNet model with Snapdragon X-series NPU profiles |
+### Pitch Deck
 
-### Execution Provider Priority
+`docs/MachineEcho_Pitch_Deck.pptx`
 
+Six-slide presentation covering:
+
+* Problem
+* Solution
+* Technology
+* Architecture
+* Results
+* Future scope
+
+### Brief Description
+
+`docs/MachineEcho_Brief_Description.pdf`
+
+A concise project description covering the problem, solution, technology, and evaluation.
+
+---
+
+# 🔬 Current Limitations
+
+MachineEcho is a prototype and has several important limitations.
+
+### 1. Machine-specific calibration
+
+Different machines produce very different acoustic signatures.
+
+A baseline should therefore be collected for each machine/environment.
+
+### 2. Environmental noise
+
+Background sounds can affect the extracted acoustic features.
+
+### 3. Limited anomaly coverage
+
+The current evaluation does not represent every possible mechanical failure.
+
+An anomaly score indicates **acoustic deviation from the learned baseline**, not a guaranteed prediction of physical failure.
+
+### 4. Synthetic evaluation
+
+Part of the current demonstration uses synthetically generated machine audio. Real-world validation across different machines and failure conditions is required before making reliability claims.
+
+### 5. Hardware-dependent NPU acceleration
+
+QNN/Hexagon acceleration depends on compatible Snapdragon hardware, drivers, ONNX Runtime configuration, and model support.
+
+---
+
+# 🔮 Future Scope
+
+MachineEcho can be extended into a more comprehensive predictive-maintenance platform.
+
+### Multi-machine profiles
+
+```text
+Machine A → Baseline A
+Machine B → Baseline B
+Machine C → Baseline C
 ```
-1. QNNExecutionProvider  →  Qualcomm Hexagon NPU (preferred)
-2. CPUExecutionProvider  →  Fallback for non-Snapdragon hardware
+
+### Edge AI model optimization
+
+Further optimize the complete inference pipeline for Snapdragon NPU execution.
+
+### More anomaly types
+
+Build datasets containing:
+
+* Bearing wear
+* Fan imbalance
+* Motor friction
+* Loose components
+* Pump cavitation
+* Belt problems
+
+### Sensor fusion
+
+Combine acoustic monitoring with:
+
+```text
+Audio
+  +
+Vibration
+  +
+Temperature
+  +
+Current
 ```
 
----
+to improve machine-health monitoring.
 
-## 📊 How It Works
+### Federated / privacy-preserving learning
 
-### Training Phase (one-time, per machine)
-
-1. Record 30–60 seconds of the machine running normally
-2. Audio is split into 0.96-second overlapping windows
-3. Each window → log-mel spectrogram → YAMNet → 1024-dim embedding
-4. All normal embeddings train an Isolation Forest (one-class classifier)
-5. The trained model is saved to `anomaly_model/detector.pkl`
-
-### Monitoring Phase (continuous)
-
-1. Microphone captures live audio in 0.96-second windows
-2. Each window → spectrogram → YAMNet → embedding → anomaly score
-3. Score is normalized to [0, 1]: higher = more anomalous
-4. Dashboard displays status, score, chart, and evidence
-
-### Scoring Thresholds
-
-| Score Range | Status | Action |
-|-------------|--------|--------|
-| 0.0 – 0.4 | 🟢 **NORMAL** | Machine operating within baseline |
-| 0.4 – 0.7 | 🟠 **ANOMALY DETECTED** | Acoustic deviation — schedule inspection |
-| 0.7 – 1.0 | 🔴 **HIGH-RISK ANOMALY** | Significant deviation — immediate attention |
+Future versions could allow models to improve across multiple machines without requiring raw audio to leave the device.
 
 ---
 
-## 🔬 Technical Details
+# 🏆 Innovation
 
-### Audio Processing
+MachineEcho explores a simple idea:
 
-- **Sample rate:** 16,000 Hz (mono)
-- **Window duration:** 0.96 seconds (15,360 samples)
-- **Hop duration:** 0.48 seconds (50% overlap)
-- **Mel spectrogram:** 64 bands, 10 ms hop, 25 ms window, 125–7,500 Hz
+> **The microphone already inside a laptop can potentially become a machine-health sensor.**
 
-### YAMNet Model
+Instead of requiring dedicated industrial monitoring hardware, MachineEcho combines:
 
-- **Type:** Audio event classification (used as feature extractor)
-- **Input:** Log-mel spectrogram patch (1, 96, 64)
-- **Output:** 1024-dimensional embedding vector
-- **Format:** ONNX (from Qualcomm AI Hub)
-- **NPU support:** Snapdragon X Elite / X Plus / X2 Elite
+**Commodity microphone + pretrained audio representation + anomaly detection + Snapdragon NPU acceleration**
 
-### Anomaly Detection
-
-- **Algorithm:** Isolation Forest (scikit-learn)
-- **Training data:** Normal-operation embeddings only
-- **Contamination:** 5% (expected false-positive rate)
-- **Estimators:** 100 trees
+into a portable edge-AI monitoring system.
 
 ---
 
-## 🛣️ Roadmap
+# 🛠️ Technology Stack
 
-| Phase | Feature | Status |
-|-------|---------|--------|
-| 1 | Acoustic anomaly detection | ✅ Implemented |
-| 2 | Vision-assisted inspection (camera) | 🔜 Planned |
-| 3 | Multi-machine simultaneous monitoring | 🔜 Planned |
-| 4 | Failure-type classification | 🔜 Planned |
-| 5 | Mobile companion app | 🔜 Planned |
-
----
-
-## 📝 License
-
-This project is developed for the Qualcomm & Unstop Innovation Challenge.
-
----
-
-## 🙏 Acknowledgements
-
-- **Qualcomm AI Hub** — YAMNet model and Snapdragon NPU profiles
-- **Google Research** — Original YAMNet architecture
-- **MIMII / ToyADMOS** — Machine-sound anomaly detection research
-- **scikit-learn** — Isolation Forest implementation
-- **Streamlit** — Dashboard framework
+| Component          | Technology                         |
+| ------------------ | ---------------------------------- |
+| Language           | Python                             |
+| Audio Processing   | NumPy / audio processing libraries |
+| Feature Extraction | YAMNet                             |
+| Model Format       | ONNX                               |
+| Inference          | ONNX Runtime                       |
+| NPU Acceleration   | Qualcomm QNN / Hexagon             |
+| Anomaly Detection  | Scikit-learn Isolation Forest      |
+| Dashboard          | Streamlit                          |
+| Visualization      | Streamlit charts                   |
+| Platform           | Snapdragon Windows PC              |
 
 ---
 
-<p align="center">
-  <b>MachineEcho</b> — Transforming ordinary laptops into intelligent machine-health monitors.<br>
-  Built for Snapdragon. Powered by AI. Private by design.
-</p>
-]]>
+# 📜 License
+
+This project was developed for the **Qualcomm & Unstop Innovation Challenge**.
+
+### Acknowledgements
+
+* **Qualcomm AI Hub** — model deployment resources and Snapdragon AI acceleration
+* **Google Research** — YAMNet architecture and pretrained audio model
+* **ONNX Runtime** — model inference framework
+* **scikit-learn** — Isolation Forest implementation
+* **Streamlit** — interactive application interface
+
+---
+
+# 👥 Project
+
+**MachineEcho**
+
+> Contactless acoustic anomaly detection for machines using Snapdragon-powered edge AI.
+
+Built for the **Qualcomm & Unstop Innovation Challenge**.
