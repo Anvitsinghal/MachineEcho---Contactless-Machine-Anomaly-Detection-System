@@ -666,3 +666,8 @@ This project was developed for the **Qualcomm & Unstop Innovation Challenge**.
 > Contactless acoustic anomaly detection for machines using Snapdragon-powered edge AI.
 
 Built for the **Qualcomm & Unstop Innovation Challenge**.
+
+<img width="1902" height="967" alt="Screenshot 2026-09-29 162802" src="https://github.com/user-attachments/assets/10148652-20b4-42ab-b62f-bbd8f7b06c02" />
+
+<img width="747" height="508" alt="Screenshot 2026-09-29 162750" src="https://github.com/user-attachments/assets/ce125bc0-aa19-4795-a9e9-452d33e3dabd" />
+
