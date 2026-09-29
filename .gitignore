@@ -1,0 +1,46 @@
+# MachineEcho .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Virtual environment
+venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Models (large binary files)
+models/*.onnx
+models/*.tflite
+
+# Trained anomaly model
+anomaly_model/detector.pkl
+
+# Audio data (user-recorded)
+data/normal/*.wav
+data/abnormal/*.wav
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Streamlit
+.streamlit/
+
+# Misc
+*.log
+*.tmp
